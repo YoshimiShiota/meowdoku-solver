@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Meowdoku ソルバー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Zen Maru Gothic', 'Inter', sans-serif;
+            background-color: #fdf8f5;
+            color: #4a3b32;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(74, 59, 50, 0.15);
+            background: #eee4dc;
+            touch-action: none; /* キャンバス上のドラッグ操作を優先 */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #ff8c69 0%, #ff6b4a 100%);
+            box-shadow: 0 4px 12px rgba(255, 107, 74, 0.35);
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .btn-primary:active {
+            transform: scale(0.97);
+        }
+        .step-badge {
+            background-color: #ff8c69;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-right: 6px;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <!-- ヘッダー -->
+    <header class="bg-white/90 backdrop-blur-md sticky top-0 z-30 border-b border-orange-100 px-4 py-3 shadow-sm">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🐱</span>
+                <h1 class="text-lg font-bold text-stone-800 tracking-tight">Meowdoku ソルバー</h1>
+            </div>
+            <button id="demoBtn" class="text-xs font-bold bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full hover:bg-amber-200 transition">
+                デモ盤面で試す
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 pt-4 space-y-5">
+
+        <!-- ステップ1: 画像選択 -->
+        <section class="bg-white p-4 rounded-2xl shadow-sm border border-orange-100">
+            <h2 class="text-sm font-bold text-stone-700 mb-3 flex items-center">
+                <span class="step-badge">1</span> スクリーンショットを選択
+            </h2>
+            <label class="flex flex-col items-center justify-center w-full py-3.5 px-4 bg-orange-50/70 hover:bg-orange-100/70 border-2 border-dashed border-orange-300 rounded-xl cursor-pointer transition">
+                <div class="flex items-center gap-2 text-orange-700 font-bold text-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span>iPhoneの写真ライブラリから選ぶ</span>
+                </div>
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+            </label>
+        </section>
+
+        <!-- ステップ2: 盤面の調整 -->
+        <section id="editorSection" class="bg-white p-4 rounded-2xl shadow-sm border border-orange-100 hidden space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-stone-700 flex items-center">
+                    <span class="step-badge">2</span> 盤面の枠とマス数を合わせる
+                </h2>
+                <button id="autoDetectBtn" class="text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold px-2.5 py-1 rounded-lg transition">
+                    枠を自動検出
+                </button>
+            </div>
+
+            <!-- マス数セレクター -->
+            <div class="flex items-center justify-between bg-stone-50 p-2.5 rounded-xl border border-stone-200/70">
+                <span class="text-xs font-bold text-stone-600">グリッドサイズ（行×列）</span>
+                <div class="flex items-center gap-1.5">
+                    <button id="sizeDec" class="w-8 h-8 rounded-lg bg-white border border-stone-300 font-bold text-stone-700 shadow-sm active:bg-stone-100">-</button>
+                    <span id="gridSizeLabel" class="w-16 text-center font-bold text-sm text-orange-600">11 × 11</span>
+                    <button id="sizeInc" class="w-8 h-8 rounded-lg bg-white border border-stone-300 font-bold text-stone-700 shadow-sm active:bg-stone-100">+</button>
+                </div>
+            </div>
+
+            <p class="text-xs text-stone-500 leading-relaxed">
+                💡 画像上の<span class="font-bold text-orange-600">オレンジ色の枠（四隅の丸）</span>を指でドラッグして、パズルの盤面ぴったりに重ねてください。
+            </p>
+
+            <!-- インタラクティブキャンバス -->
+            <div class="canvas-container" id="canvasWrapper">
+                <canvas id="boardCanvas"></canvas>
+            </div>
+
+            <!-- 微調整ボタン -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <label class="flex items-center gap-2 bg-stone-50 px-3 py-2 rounded-xl border border-stone-200/70 cursor-pointer">
+                    <input type="checkbox" id="showColorPreview" class="rounded text-orange-500 focus:ring-orange-400">
+                    <span class="font-semibold text-stone-700">認識した色分けを表示</span>
+                </label>
+                <div class="flex items-center justify-between bg-stone-50 px-3 py-2 rounded-xl border border-stone-200/70">
+                    <span class="font-semibold text-stone-600">色判定感度</span>
+                    <input type="range" id="colorSensitivity" min="10" max="65" value="28" class="w-16 accent-orange-500">
+                </div>
+            </div>
+
+            <!-- 解析ボタン -->
+            <button id="solveBtn" class="btn-primary w-full py-3.5 rounded-xl text-white font-bold text-base flex items-center justify-center gap-2">
+                <span>🔍 猫の位置を解析して予想する</span>
+            </button>
+        </section>
+
+        <!-- ステータス・エラーメッセージ -->
+        <div id="messageBox" class="hidden p-4 rounded-2xl text-sm font-semibold leading-relaxed shadow-sm"></div>
+
+        <!-- ステップ3: 解析結果のサマリー -->
+        <section id="resultSection" class="bg-white p-4 rounded-2xl shadow-sm border border-orange-100 hidden space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-stone-700 flex items-center">
+                    <span class="step-badge">3</span> 予想された猫の配置
+                </h2>
+                <span id="solveTimeBadge" class="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    解析完了
+                </span>
+            </div>
+            <p class="text-xs text-stone-600">
+                上の画像に 🐱 を表示しました。下の表は「上から何行目・左から何列目」かの座標リストです。
+            </p>
+            <div id="coordList" class="grid grid-cols-3 gap-1.5 pt-1"></div>
+        </section>
+
+    </main>
+
+    <script>
+        /**
+         * Meowdoku (Star Battle / Queens) 画像解析 & ソルバー
+         */
+        const imageInput = document.getElementById('imageInput');
+        const demoBtn = document.getElementById('demoBtn');
+        const editorSection = document.getElementById('editorSection');
+        const resultSection = document.getElementById('resultSection');
+        const messageBox = document.getElementById('messageBox');
+        const canvas = document.getElementById('boardCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const gridSizeLabel = document.getElementById('gridSizeLabel');
+        const sizeDec = document.getElementById('sizeDec');
+        const sizeInc = document.getElementById('sizeInc');
+        const autoDetectBtn = document.getElementById('autoDetectBtn');
+        const showColorPreview = document.getElementById('showColorPreview');
+        const colorSensitivity = document.getElementById('colorSensitivity');
+        const solveBtn = document.getElementById('solveBtn');
+        const coordList = document.getElementById('coordList');
+        const solveTimeBadge = document.getElementById('solveTimeBadge');
+
+        // アプリ状態
+        let loadedImg = null;
+        let offscreenCanvas = document.createElement('canvas');
+        let offCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+        let gridSize = 11; // デフォルト11x11 (レベル255等に対応)
+        // バウンディングボックス（画像の元解像度基準）
+        let box = { x: 0, y: 0, w: 0, h: 0 };
+        let draggingMode = null; // 'move', 'tl', 'tr', 'bl', 'br'
+        let dragStart = { x: 0, y: 0, box: null };
+
+        let detectedRegions = null; // 2次元配列 [row][col] = regionId
+        let regionPalette = [];     // 各regionIdの代表RGB色
+        let solvedCats = null;      // [{r, c}, ...]
+
+        // メッセージ表示ヘルパー
+        function showMessage(text, type = 'info') {
+            messageBox.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'border-red-200', 'bg-emerald-50', 'text-emerald-800', 'border-emerald-200', 'bg-amber-50', 'text-amber-800', 'border-amber-200');
+            messageBox.classList.add('border');
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-50', 'text-red-700', 'border-red-200');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-emerald-50', 'text-emerald-800', 'border-emerald-200');
+            } else {
+                messageBox.classList.add('bg-amber-50', 'text-amber-800', 'border-amber-200');
+            }
+            messageBox.innerHTML = text;
+        }
+
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        // 画像読み込み処理
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    initWithImage(img);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // デモ盤面生成（レベル255風の11x11サンプル）
+        demoBtn.addEventListener('click', () => {
+            const demoCanvas = document.createElement('canvas');
+            demoCanvas.width = 660;
+            demoCanvas.height = 820;
+            const dCtx = demoCanvas.getContext('2d');
+
+            // 背景
+            dCtx.fillStyle = '#fbf5f0';
+            dCtx.fillRect(0, 0, 660, 820);
+
+            dCtx.fillStyle = '#5c493e';
+            dCtx.font = 'bold 28px sans-serif';
+            dCtx.textAlign = 'center';
+            dCtx.fillText('デモ盤面 (11×11 サンプル)', 330, 55);
+
+            // 11x11のサンプルカラー領域マップ
+            const sampleMap = [
+                [0, 0, 1, 1, 1, 2, 2, 2, 2, 2, 3],
+                [0, 1, 1, 1, 1, 2, 4, 4, 2, 3, 3],
+                [0, 0, 5, 5, 6, 6, 2, 2, 4, 4, 3],
+                [0, 0, 5, 6, 6, 6, 7, 7, 4, 3, 3],
+                [8, 0, 5, 6, 6, 6, 7, 7, 7, 7, 3],
+                [8, 8, 5, 6, 6, 6, 7, 7, 7, 7, 3],
+                [8, 8, 6, 6, 6, 6, 7, 7, 7, 3, 3],
+                [9, 9, 9, 9, 9, 6, 6, 7, 3, 3, 3],
+                [9, 9, 9, 10, 10, 10, 10, 10, 10, 3, 3],
+                [9, 9, 10, 10, 10, 10, 10, 10, 10, 3, 3],
+                [9, 9, 10, 10, 10, 10, 10, 10, 3, 3, 3]
+            ];
+            const colors = [
+                '#f4b3ce', '#4c72b0', '#a6bddb', '#cc6b6b', '#a8d594',
+                '#45b3a8', '#e678b2', '#f5a665', '#9e6b43', '#dfb84c', '#9370db'
+            ];
+
+            const startX = 33, startY = 110, cell = 54;
+            for (let r = 0; r < 11; r++) {
+                for (let c = 0; c < 11; c++) {
+                    dCtx.fillStyle = colors[sampleMap[r][c]];
+                    dCtx.beginPath();
+                    dCtx.roundRect(startX + c * cell + 2, startY + r * cell + 2, cell - 4, cell - 4, 8);
+                    dCtx.fill();
+                }
+            }
+
+            const img = new Image();
+            img.onload = () => {
+                gridSize = 11;
+                updateSizeUI();
+                initWithImage(img);
+                showMessage('デモ盤面を読み込みました。「猫の位置を解析して予想する」を押して動作を試せます！', 'info');
+            };
+            img.src = demoCanvas.toDataURL();
+        });
+
+        function initWithImage(img) {
+            loadedImg = img;
+            solvedCats = null;
+            detectedRegions = null;
+            resultSection.classList.add('hidden');
+            hideMessage();
+
+            // キャンバス解像度を画像に合わせる（大きすぎる場合は適度に縮小）
+            const maxDim = 1200;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                const ratio = Math.min(maxDim / w, maxDim / h);
+                w = Math.round(w * ratio);
+                h = Math.round(h * ratio);
+            }
+            canvas.width = w;
+            canvas.height = h;
+            offscreenCanvas.width = w;
+            offscreenCanvas.height = h;
+            offCtx.drawImage(img, 0, 0, w, h);
+
+            editorSection.classList.remove('hidden');
+            autoDetectBoard();
+            extractColors();
+            render();
+        }
+
+        // スクリーンショットから盤面の正方形エリアを自動推定するヒューリスティック
+        function autoDetectBoard() {
+            if (!loadedImg) return;
+            const w = offscreenCanvas.width;
+            const h = offscreenCanvas.height;
+            const imgData = offCtx.getImageData(0, 0, w, h).data;
+
+            // Meowdokuの背景は明るいクリーム色 (#fbf5f0付近)。彩度の高いピクセルが多い行範囲を探す
+            let rowColorCounts = new Array(h).fill(0);
+            for (let y = Math.floor(h * 0.15); y < Math.floor(h * 0.85); y += 2) {
+                let colorful = 0;
+                for (let x = Math.floor(w * 0.05); x < Math.floor(w * 0.95); x += 4) {
+                    const idx = (y * w + x) * 4;
+                    const r = imgData[idx], g = imgData[idx + 1], b = imgData[idx + 2];
+                    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+                    if (max - min > 28 && max < 248) {
+                        colorful++;
+                    }
+                }
+                rowColorCounts[y] = colorful;
+            }
+
+            // 連続してカラフルな領域（盤面）の開始Yと終了Yを特定
+            const threshold = (w * 0.9 / 4) * 0.45;
+            let bestStart = -1, bestEnd = -1, curStart = -1;
+            for (let y = 0; y < h; y += 2) {
+                if (rowColorCounts[y] > threshold) {
+                    if (curStart === -1) curStart = y;
+                } else {
+                    if (curStart !== -1) {
+                        if (y - curStart > bestEnd - bestStart) {
+                            bestStart = curStart;
+                            bestEnd = y;
+                        }
+                        curStart = -1;
+                    }
+                }
+            }
+
+            if (bestEnd - bestStart > w * 0.45) {
+                // 盤面はほぼ正方形なので、高さまたは幅に合わせて中央揃え
+                const boardSize = Math.min(w * 0.94, bestEnd - bestStart);
+                box.w = boardSize;
+                box.h = boardSize;
+                box.x = (w - boardSize) / 2;
+                box.y = bestStart + ((bestEnd - bestStart) - boardSize) / 2;
+            } else {
+                // フォールバック：画面中央に正方形を配置
+                const size = w * 0.92;
+                box.x = (w - size) / 2;
+                box.y = (h - size) * 0.48;
+                box.w = size;
+                box.h = size;
+            }
+        }
+
+        autoDetectBtn.addEventListener('click', () => {
+            solvedCats = null;
+            resultSection.classList.add('hidden');
+            autoDetectBoard();
+            extractColors();
+            render();
+        });
+
+        // グリッドサイズ変更
+        function updateSizeUI() {
+            gridSizeLabel.textContent = `${gridSize} × ${gridSize}`;
+        }
+        sizeDec.addEventListener('click', () => {
+            if (gridSize > 5) {
+                gridSize--;
+                solvedCats = null;
+                resultSection.classList.add('hidden');
+                updateSizeUI();
+                extractColors();
+                render();
+            }
+        });
+        sizeInc.addEventListener('click', () => {
+            if (gridSize < 14) {
+                gridSize++;
+                solvedCats = null;
+                resultSection.classList.add('hidden');
+                updateSizeUI();
+                extractColors();
+                render();
+            }
+        });
+
+        showColorPreview.addEventListener('change', () => {
+            extractColors();
+            render();
+        });
+        colorSensitivity.addEventListener('input', () => {
+            extractColors();
+            render();
+        });
+
+        // RGBから知覚色差に近いLab風の空間へ変換して距離を計算
+        function rgbToLab(r, g, b) {
+            let r1 = r / 255, g1 = g / 255, b1 = b / 255;
+            r1 = r1 > 0.04045 ? Math.pow((r1 + 0.055) / 1.055, 2.4) : r1 / 12.92;
+            g1 = g1 > 0.04045 ? Math.pow((g1 + 0.055) / 1.055, 2.4) : g1 / 12.92;
+            b1 = b1 > 0.04045 ? Math.pow((b1 + 0.055) / 1.055, 2.4) : b1 / 12.92;
+
+            let x = (r1 * 0.4124 + g1 * 0.3576 + b1 * 0.1805) / 0.95047;
+            let y = (r1 * 0.2126 + g1 * 0.7152 + b1 * 0.0722) / 1.00000;
+            let z = (r1 * 0.0193 + g1 * 0.1192 + b1 * 0.9505) / 1.08883;
+
+            x = x > 0.008856 ? Math.cbrt(x) : (7.787 * x) + 16 / 116;
+            y = y > 0.008856 ? Math.cbrt(y) : (7.787 * y) + 16 / 116;
+            z = z > 0.008856 ? Math.cbrt(z) : (7.787 * z) + 16 / 116;
+
+            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+        }
+
+        function colorDist(lab1, lab2) {
+            const dl = lab1[0] - lab2[0];
+            const da = lab1[1] - lab2[1];
+            const db = lab1[2] - lab2[2];
+            return Math.sqrt(dl * dl + da * da + db * db);
+        }
+
+        /**
+         * 各マスの中心付近のピクセル色をサンプリングし、色の距離に基づいてクラスタリング
+         */
+        function extractColors() {
+            if (!loadedImg) return;
+            const cellW = box.w / gridSize;
+            const cellH = box.h / gridSize;
+
+            const cells = [];
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const cx = Math.round(box.x + (c + 0.5) * cellW);
+                    const cy = Math.round(box.y + (r + 0.5) * cellH);
+                    // 中心の3x3ピクセルの平均を取得してノイズ軽減
+                    let sumR = 0, sumG = 0, sumB = 0, count = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const px = Math.min(Math.max(cx + dx, 0), offscreenCanvas.width - 1);
+                            const py = Math.min(Math.max(cy + dy, 0), offscreenCanvas.height - 1);
+                            const data = offCtx.getImageData(px, py, 1, 1).data;
+                            sumR += data[0];
+                            sumG += data[1];
+                            sumB += data[2];
+                            count++;
+                        }
+                    }
+                    const avgR = Math.round(sumR / count);
+                    const avgG = Math.round(sumG / count);
+                    const avgB = Math.round(sumB / count);
+                    cells.push({
+                        r, c,
+                        rgb: [avgR, avgG, avgB],
+                        lab: rgbToLab(avgR, avgG, avgB)
+                    });
+                }
+            }
+
+            // 階層的クラスタリング（Agglomerative Clustering）で正確に gridSize 個のグループに統合する
+            // 各セルを最初は1つのクラスタとする
+            let clusters = cells.map((cell, idx) => ({
+                id: idx,
+                members: [cell],
+                meanLab: [...cell.lab],
+                meanRgb: [...cell.rgb]
+            }));
+
+            while (clusters.length > gridSize) {
+                let minD = Infinity;
+                let bestI = 0, bestJ = 1;
+                for (let i = 0; i < clusters.length; i++) {
+                    for (let j = i + 1; j < clusters.length; j++) {
+                        const d = colorDist(clusters[i].meanLab, clusters[j].meanLab);
+                        if (d < minD) {
+                            minD = d;
+                            bestI = i;
+                            bestJ = j;
+                        }
+                    }
+                }
+                // bestI と bestJ を統合
+                const cA = clusters[bestI];
+                const cB = clusters[bestJ];
+                const total = cA.members.length + cB.members.length;
+                const newLab = [
+                    (cA.meanLab[0] * cA.members.length + cB.meanLab[0] * cB.members.length) / total,
+                    (cA.meanLab[1] * cA.members.length + cB.meanLab[1] * cB.members.length) / total,
+                    (cA.meanLab[2] * cA.members.length + cB.meanLab[2] * cB.members.length) / total
+                ];
+                const newRgb = [
+                    Math.round((cA.meanRgb[0] * cA.members.length + cB.meanRgb[0] * cB.members.length) / total),
+                    Math.round((cA.meanRgb[1] * cA.members.length + cB.meanRgb[1] * cB.members.length) / total),
+                    Math.round((cA.meanRgb[2] * cA.members.length + cB.meanRgb[2] * cB.members.length) / total)
+                ];
+                cA.members = cA.members.concat(cB.members);
+                cA.meanLab = newLab;
+                cA.meanRgb = newRgb;
+                clusters.splice(bestJ, 1);
+            }
+
+            // 結果を2次元配列に格納
+            detectedRegions = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+            regionPalette = [];
+            clusters.forEach((cluster, regIdx) => {
+                regionPalette[regIdx] = cluster.meanRgb;
+                cluster.members.forEach(m => {
+                    detectedRegions[m.r][m.c] = regIdx;
+                });
+            });
+        }
+
+        /**
+         * バックトラッキング探索アルゴリズム (Meowdoku / Queens ルール)
+         * ルール:
+         * 1. 各行に1匹
+         * 2. 各列に1匹
+         * 3. 各色エリア(region)に1匹
+         * 4. 8近傍（縦・横・斜め）に隣接不可
+         */
+        function solveMeowdoku(N, regions) {
+            // 候補が少ない色エリア（または行）から順に探索するMRV（最小残余値）ヒューリスティック
+            const regionCells = Array.from({ length: N }, () => []);
+            for (let r = 0; r < N; r++) {
+                for (let c = 0; c < N; c++) {
+                    regionCells[regions[r][c]].push({ r, c });
+                }
+            }
+
+            // マス数が少ない色エリアから順に並べることで探索を劇的に高速化
+            const order = Array.from({ length: N }, (_, i) => i)
+                .sort((a, b) => regionCells[a].length - regionCells[b].length);
+
+            const usedRow = new Uint8Array(N);
+            const usedCol = new Uint8Array(N);
+            const placed = []; // {r, c}
+
+            let iterations = 0;
+            const MAX_ITER = 500000;
+
+            function backtrack(step) {
+                if (step === N) return true;
+                if (++iterations > MAX_ITER) return false;
+
+                const regId = order[step];
+                const candidates = regionCells[regId];
+
+                for (let i = 0; i < candidates.length; i++) {
+                    const { r, c } = candidates[i];
+                    if (usedRow[r] || usedCol[c]) continue;
+
+                    // 8近傍（縦横斜め）チェック
+                    let adjacent = false;
+                    for (let j = 0; j < placed.length; j++) {
+                        const p = placed[j];
+                        if (Math.abs(p.r - r) <= 1 && Math.abs(p.c - c) <= 1) {
+                            adjacent = true;
+                            break;
+                        }
+                    }
+                    if (adjacent) continue;
+
+                    // 配置
+                    usedRow[r] = 1;
+                    usedCol[c] = 1;
+                    placed.push({ r, c });
+
+                    if (backtrack(step + 1)) return true;
+
+                    // バックトラック
+                    placed.pop();
+                    usedRow[r] = 0;
+                    usedCol[c] = 0;
+                }
+                return false;
+            }
+
+            const success = backtrack(0);
+            if (!success) return null;
+
+            // 行番号順にソートして返す
+            return placed.sort((a, b) => a.r - b.r);
+        }
+
+        // 解析実行ボタン
+        solveBtn.addEventListener('click', () => {
+            if (!loadedImg) return;
+            hideMessage();
+            extractColors();
+
+            const t0 = performance.now();
+            const solution = solveMeowdoku(gridSize, detectedRegions);
+            const t1 = performance.now();
+
+            if (solution) {
+                solvedCats = solution;
+                render();
+                displayResults(solution, (t1 - t0).toFixed(1));
+                showMessage('🎉 正解の配置が見つかりました！画像上の 🐱 の位置を確認してください。', 'success');
+            } else {
+                solvedCats = null;
+                showColorPreview.checked = true;
+                render();
+                resultSection.classList.add('hidden');
+                showMessage('⚠️ ルールを満たす配置が見つかりませんでした。<br>オレンジの枠が盤面の四隅にぴったり合っているか、グリッドサイズ（11×11など）が正しいか調整して再度お試しください。', 'error');
+            }
+        });
+
+        function displayResults(solution, ms) {
+            resultSection.classList.remove('hidden');
+            solveTimeBadge.textContent = `解析時間: ${ms}ms`;
+            coordList.innerHTML = '';
+
+            solution.forEach((pos) => {
+                const badge = document.createElement('div');
+                badge.className = 'bg-orange-50 border border-orange-200 rounded-xl px-2.5 py-1.5 text-center text-xs font-bold text-stone-700 flex items-center justify-center gap-1';
+                badge.innerHTML = `<span>🐱</span><span>${pos.r + 1}行 - ${pos.c + 1}列</span>`;
+                coordList.appendChild(badge);
+            });
+        }
+
+        // キャンバス描画処理
+        function render() {
+            if (!loadedImg) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(offscreenCanvas, 0, 0);
+
+            const cellW = box.w / gridSize;
+            const cellH = box.h / gridSize;
+
+            // 認識色のプレビュー表示（オンの場合）
+            if (showColorPreview.checked && detectedRegions) {
+                for (let r = 0; r < gridSize; r++) {
+                    for (let c = 0; c < gridSize; c++) {
+                        const regId = detectedRegions[r][c];
+                        const rgb = regionPalette[regId];
+                        ctx.fillStyle = `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.85)`;
+                        ctx.fillRect(
+                            box.x + c * cellW + 1,
+                            box.y + r * cellH + 1,
+                            cellW - 2,
+                            cellH - 2
+                        );
+                    }
+                }
+            }
+
+            // グリッド線の描画
+            ctx.strokeStyle = 'rgba(255, 107, 74, 0.75)';
+            ctx.lineWidth = Math.max(1.5, canvas.width / 400);
+            for (let i = 1; i < gridSize; i++) {
+                // 縦線
+                ctx.beginPath();
+                ctx.moveTo(box.x + i * cellW, box.y);
+                ctx.lineTo(box.x + i * cellW, box.y + box.h);
+                ctx.stroke();
+                // 横線
+                ctx.beginPath();
+                ctx.moveTo(box.x, box.y + i * cellH);
+                ctx.lineTo(box.x + box.w, box.y + i * cellH);
+                ctx.stroke();
+            }
+
+            // 外枠の描画
+            ctx.strokeStyle = '#ff552e';
+            ctx.lineWidth = Math.max(3, canvas.width / 220);
+            ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+            // 四隅のドラッグハンドル描画
+            const handleR = Math.max(12, canvas.width / 38);
+            const corners = [
+                { x: box.x, y: box.y },
+                { x: box.x + box.w, y: box.y },
+                { x: box.x, y: box.y + box.h },
+                { x: box.x + box.w, y: box.y + box.h }
+            ];
+            corners.forEach(pt => {
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, handleR, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#ff552e';
+                ctx.stroke();
+            });
+
+            // 予想された猫アイコンのオーバーレイ描画
+            if (solvedCats) {
+                const fontSize = Math.floor(Math.min(cellW, cellH) * 0.74);
+                ctx.font = `${fontSize}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                solvedCats.forEach(pos => {
+                    const cx = box.x + (pos.c + 0.5) * cellW;
+                    const cy = box.y + (pos.r + 0.5) * cellH;
+
+                    // 見やすいように白い丸背景を敷く
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, Math.min(cellW, cellH) * 0.42, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#ff6b4a';
+                    ctx.stroke();
+
+                    ctx.fillText('🐱', cx, cy + fontSize * 0.06);
+                });
+            }
+        }
+
+        // タッチ＆マウス操作による枠のリサイズ・移動
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: (clientX - rect.left) * (canvas.width / rect.width),
+                y: (clientY - rect.top) * (canvas.height / rect.height)
+            };
+        }
+
+        function onPointerDown(e) {
+            if (!loadedImg) return;
+            const pt = getCanvasCoords(e);
+            const hitRadius = Math.max(32, canvas.width / 16);
+
+            const corners = {
+                tl: { x: box.x, y: box.y },
+                tr: { x: box.x + box.w, y: box.y },
+                bl: { x: box.x, y: box.y + box.h },
+                br: { x: box.x + box.w, y: box.y + box.h }
+            };
+
+            for (const [key, c] of Object.entries(corners)) {
+                if (Math.hypot(pt.x - c.x, pt.y - c.y) <= hitRadius) {
+                    draggingMode = key;
+                    dragStart = { x: pt.x, y: pt.y, box: { ...box } };
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // 枠の内側なら全体を移動
+            if (pt.x >= box.x && pt.x <= box.x + box.w && pt.y >= box.y && pt.y <= box.y + box.h) {
+                draggingMode = 'move';
+                dragStart = { x: pt.x, y: pt.y, box: { ...box } };
+                e.preventDefault();
+            }
+        }
+
+        function onPointerMove(e) {
+            if (!draggingMode) return;
+            e.preventDefault();
+            const pt = getCanvasCoords(e);
+            const dx = pt.x - dragStart.x;
+            const dy = pt.y - dragStart.y;
+            const b = dragStart.box;
+            const minSize = 60;
+
+            if (draggingMode === 'move') {
+                box.x = Math.max(0, Math.min(canvas.width - b.w, b.x + dx));
+                box.y = Math.max(0, Math.min(canvas.height - b.h, b.y + dy));
+            } else if (draggingMode === 'tl') {
+                const newX = Math.min(b.x + b.w - minSize, Math.max(0, b.x + dx));
+                const newY = Math.min(b.y + b.h - minSize, Math.max(0, b.y + dy));
+                box.w = b.w + (b.x - newX);
+                box.h = b.h + (b.y - newY);
+                box.x = newX;
+                box.y = newY;
+            } else if (draggingMode === 'tr') {
+                const newW = Math.max(minSize, Math.min(canvas.width - b.x, b.w + dx));
+                const newY = Math.min(b.y + b.h - minSize, Math.max(0, b.y + dy));
+                box.w = newW;
+                box.h = b.h + (b.y - newY);
+                box.y = newY;
+            } else if (draggingMode === 'bl') {
+                const newX = Math.min(b.x + b.w - minSize, Math.max(0, b.x + dx));
+                const newH = Math.max(minSize, Math.min(canvas.height - b.y, b.h + dy));
+                box.w = b.w + (b.x - newX);
+                box.x = newX;
+                box.h = newH;
+            } else if (draggingMode === 'br') {
+                box.w = Math.max(minSize, Math.min(canvas.width - b.x, b.w + dx));
+                box.h = Math.max(minSize, Math.min(canvas.height - b.y, b.h + dy));
+            }
+
+            if (showColorPreview.checked) {
+                extractColors();
+            }
+            render();
+        }
+
+        function onPointerUp() {
+            if (draggingMode) {
+                draggingMode = null;
+                extractColors();
+                render();
+            }
+        }
+
+        canvas.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+    </script>
+</body>
+</html>
